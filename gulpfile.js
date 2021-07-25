@@ -1,4 +1,3 @@
-// require
 const {
     src,
     dest,
@@ -15,51 +14,71 @@ const {
     imagemin = require('gulp-imagemin'),
     cleandist = require('del'),
     browserSync = require('browser-sync').create(),
-    fontmin = require('gulp-fontmin');
-// function
-function browsersync() {
+    fontmin = require('gulp-fontmin'),
+    sourcemaps = require('gulp-sourcemaps'),
+    rigger = require('gulp-rigger')
+
+var path = {
+    dist: {
+        html: 'dist/',
+        js: 'dist/js/',
+        css: 'dist/css/',
+        img: 'dist/img/',
+        fonts: 'dist/fonts/'
+    },
+    src: {
+        html: 'src/*.html',
+        js: ['src/js/*.js',"src/js/*.json"],
+        style: 'src/style/*.scss',
+        img: 'src/img/**/*.*',
+        fonts: 'src/fonts/**/*.*'
+    },
+    watch: {
+        html: 'src/**/*.html',
+        js: 'src/js/**/*.js',
+        style: 'src/style/**/*.scss',
+        img: 'src/img/**/*.*',
+        fonts: 'src/fonts/**/*.*'
+    },
+    clean: './dist'
+};
+
+const browsersync = () => {
     browserSync.init({
-            proxy: 'localhost/shop-master/app',
-            port: 5000
+        server: {
+            baseDir: "./dist"
+        }
     })
 }
 
-function scssCompile() {
-    return src("app/scss/*.scss")
+const style = () => {
+    return src(path.src.style)
+        .pipe(sourcemaps.init())
         .pipe(sass())
-        .pipe(concat("style.css"))
+        .pipe(concat("bundle.min.css"))
         .pipe(cleancss({
             keepBreaks: false
         }))
-        .pipe(dest("app/css"))
+        .pipe(sourcemaps.write())
+        .pipe(dest(path.dist.css))
         .pipe(browserSync.stream());
 }
-function styleBuild() {
-    return src('app/*css/**/*.css')
-        .pipe(cleancss({
-            keepBreaks: false
-        }))
-        .pipe(rename({
-            basename: "bundle",
-            extname: '.min.css'
-        }))
-        .pipe(dest("dist/css"))
-}
-function scriptBuild() {
-    return src(['app/*js/**/*.js'])
+
+const script = () => {
+    return src(path.src.js)
+        .pipe(rigger())
+        .pipe(sourcemaps.init())
         .pipe(uglify())
         .pipe(rename({
             basename: "bundle",
             extname: '.min.js'
         }))
-        .pipe(dest('dist'))
+        .pipe(sourcemaps.write())
+        .pipe(dest(path.dist.js))
+        .pipe(browserSync.stream());
 }
-
-function del() {
-    return cleandist('dist');
-}
-function image() {
-    return src(['app/*img/**/*'])
+const image = () => {
+    return src(path.src.img)
         .pipe(imagemin([
             imagemin.gifsicle({
                 interlaced: true
@@ -81,29 +100,38 @@ function image() {
                 ]
             })
         ]))
-        .pipe(dest('dist/img'))
+        .pipe(dest(path.dist.img))
+        .pipe(browserSync.stream());
+}
+function font(){
+    return src(path.src.fonts)
+    .pipe(fontmin())
+    .pipe(dest(path.dist.fonts))
 }
 
-function watching() {
-    watch("app/scss/**/*", scssCompile);
-    watch("app/**/*").on('change', browserSync.reload);
-}
-function html(){
-    return src("app/index.html")
+
+const html = () => {
+    return src(path.src.html)
     .pipe(htmlreplace({
         js: 'js/bundle.min.js',
         css: "css/bundle.min.css"
     }))
-    .pipe(dest("dist/"))
+    .pipe(dest(path.dist.html))
+    .pipe(browserSync.stream());
+
 }
-function build() {
-    return src(['app/*.php', 'app/*.txt', 'app/*.xml',"app/*conf**/*"])
-        .pipe(dest('dist'))
+
+
+const del = () => {
+    return cleandist(path.clean);
 }
-function font(){
-    return src('app/*font/**/*')
-    .pipe(fontmin())
-    .pipe(dest("dist/font"))
+
+const watching = () => {
+    watch(path.watch.html, html);
+    watch(path.watch.js, script);
+    watch(path.watch.style, style);
+    watch(path.watch.img, image);
+    watch(path.watch.fonts, font);
 }
-exports.default = parallel(watching, scssCompile, browsersync);
-exports.build = series(del, font, image, scriptBuild, styleBuild, html, build);
+const build = series(del, html, script, style, image, font);
+exports.default = series(build, parallel(browsersync, watching));
