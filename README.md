@@ -1,4 +1,5 @@
 var path = {
+
     dist: {
         html: 'dist/',
         js: 'dist/js/',
